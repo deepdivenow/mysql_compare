@@ -16,7 +16,8 @@
 #include "checksum.h"
 
 #define MAX_STEP 65280
-#define MIN_STEP 255
+#define MIN_STEP 1000
+#define CARDI_RANGE 1000
 
 void set_global(bool debug_, std::string ext_);
 

@@ -70,7 +70,7 @@ void index::parse_columns(sql::Connection *con){  //Get columns from table
 }
 
 void index::parse_index(sql::Connection *con) { // Get index statistics from table
-    std::string sql_template = "SELECT COLUMN_NAME,SEQ_IN_INDEX,DATA_TYPE,ROUND(TABLE_ROWS/CARDINALITY,0) AS CARDI "
+    std::string sql_template = "SELECT COLUMN_NAME,SEQ_IN_INDEX,DATA_TYPE,ROUND(1000*TABLE_ROWS/CARDINALITY,0) AS CARDI "
             "FROM INFORMATION_SCHEMA.STATISTICS "
             "JOIN INFORMATION_SCHEMA.COLUMNS USING(TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME) "
             "JOIN INFORMATION_SCHEMA.TABLES USING(TABLE_SCHEMA,TABLE_NAME) "
@@ -203,6 +203,28 @@ void index::parse_index_min_max(sql::Connection *con,size_t index_num) {
     if (DEBUG) { std::cerr << "# Start: " << Range[index_num]->start_ << " Stop:" << Range[index_num]->stop_ << std::endl; }
 
     ///Calc cardinality
+    if (index_num != 0){
+       std::string sql_template="SELECT count(*) AS COUNT FROM `%s`.`%s` "
+                "FORCE INDEX (`PRIMARY`) WHERE %s";
+
+        std::string sql=string_format(sql_template,dbname_.c_str(),tablename_.c_str(), get_sql_where().c_str());
+        if (DEBUG) { std::cerr << sql << std::endl; }
+        auto stmt = con->createStatement();
+        auto res = stmt->executeQuery(sql);
+        int64_t cols1p_real;
+        while (res->next()) {
+            cols1p_real = res->getInt("COUNT");
+        }
+        int64_t cols1p_byindex=Range[index_num]->stop_-Range[index_num]->start_+1;
+        if (cols1p_byindex == 0) { cols1p_byindex = 1; }
+        Range[index_num]->cardinality_ = cols1p_real*CARDI_RANGE / cols1p_byindex;
+        if (Range[index_num]->cardinality_ < 1){
+            Range[index_num]->cardinality_=1;
+        }
+        if (DEBUG) { std::cerr << "# Cardinality min/max: " << Range[index_num]->cardinality_ << std::endl; }
+        delete res;
+        delete stmt;
+    }
 
 //    if (index_num == 0) {
 //        int64_t slice = abs(Range[index_num]->stop_ - Range[index_num]->start_) / 10;
@@ -278,9 +300,9 @@ my::index index::copy_index() const{
 }
 
 void index::index_iteration_first_step(index& irange){
-    int ii = MAX_STEP / Range[0]->cardinality_;
+    int ii = MAX_STEP*CARDI_RANGE / Range[0]->cardinality_;
     if (ii < 1) { ii=1; }
-    if (ii > MAX_STEP) { ii=MAX_STEP; }
+    if (ii > MAX_STEP*CARDI_RANGE) { ii=MAX_STEP*CARDI_RANGE; }
     if (DEBUG) { std::cerr << "#ii: "<< ii << std::endl; }
     irange.Range[0]->stop_=irange.Range[0]->start_+ii;
 }
@@ -294,9 +316,9 @@ bool index::index_iteration_can_next_step(const index& irange){
 }
 
 void index::index_iteration_next_step(index& irange){
-    int ii = MAX_STEP / Range[0]->cardinality_;
+    int ii = MAX_STEP*CARDI_RANGE / Range[0]->cardinality_;
     if (ii < 1) { ii=1; }
-    if (ii > MAX_STEP) { ii=MAX_STEP; }
+    if (ii > MAX_STEP*CARDI_RANGE) { ii=MAX_STEP*CARDI_RANGE; }
     irange.Range[0]->start_ = irange.Range[0]->stop_+1;
     irange.Range[0]->stop_ = irange.Range[0]->start_ + ii;
     if (irange.Range[0]->stop_ > Range[0]->stop_){
@@ -307,7 +329,9 @@ void index::index_iteration_next_step(index& irange){
 bool index::index_can_split() const{
     size_t i = index_ranged-1;
     if ( Range[i]->start_<Range[i]->stop_ || index_ranged < index_count ) {
-        if (Range[i]->cardinality_*(Range[i]->stop_-Range[i]->start_+1) > MIN_STEP){
+        if (Range[i]->cardinality_*(Range[i]->stop_-Range[i]->start_+1) > MIN_STEP*CARDI_RANGE){
+            if (DEBUG) { std::cerr << "#split: "<< Range[i]->cardinality_*(Range[i]->stop_-Range[i]->start_+1) << '>'
+                                   << MIN_STEP*CARDI_RANGE << std::endl; }
             return true;
         }
     }

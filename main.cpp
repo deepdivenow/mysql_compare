@@ -1,13 +1,7 @@
 
-/* Standard C++ includes */
 #include <stdlib.h>
 #include <iostream>
 
-/*
-  Include directly the different
-  headers from cppconn/ and mysql_driver.h + mysql_util.h
-  (and mysql_connection.h). This will reduce your build time!
-*/
 #include "mysql_connection.h"
 
 #include <cppconn/driver.h>
@@ -146,11 +140,6 @@ int main(int argc, char *argv[])
 
         idx1.init_index(con);
         compare_tables_iterator(con,con2,idx1);
-
-//        tt_.table_stat_init(con);
-//        tt2_.table_stat_init(con2);
-//        index_range irange = tt_.init_index_range();
-//        compare_tables(con,con2,tt_,tt2_,irange);
     }
     catch (sql::SQLException &e) {
         cerr << "# ERR: SQLException in " << __FILE__;
@@ -160,10 +149,5 @@ int main(int argc, char *argv[])
         cerr << " (MySQL error code: " << e.getErrorCode();
         cerr << ", SQLState: " << e.getSQLState() << " )" << endl;
     }
-
-
-//    tt_.print();
-//    tt2_.print();
-
     return EXIT_SUCCESS;
 }
