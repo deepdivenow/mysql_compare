@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "string_format.h"
-#include "checksum.h"
 
 #define MAX_STEP 65280
 #define MIN_STEP 1000
