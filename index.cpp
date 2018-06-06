@@ -15,27 +15,27 @@ void set_global(bool debug_, std::string ext_){
 using namespace my;
 
 std::string idx_int_field::get_sql_where() const{
-    return string_format("`%s` between %s AND %s",name_.c_str(),std::to_string(start_).c_str(),std::to_string(stop_).c_str());
+    return boost::str(boost::format("`%s` between %d AND %d") % name_ % start_ % stop_);
 }
 
 std::string idx_date_field::get_sql_where() const{
-    return string_format("`%s` between FROM_DAYS(%s) AND FROM_DAYS(%s)",name_.c_str(),std::to_string(start_).c_str(),std::to_string(stop_).c_str());
+    return boost::str(boost::format("`%s` between FROM_DAYS(%d) AND FROM_DAYS(%d)") % name_ % start_ % stop_);
 }
 
 std::string idx_int_field::get_sql_where(int64_t min, int64_t max) const{
-    return string_format("`%s` between %s AND %s",name_.c_str(),std::to_string(min).c_str(),std::to_string(max).c_str());
+    return boost::str(boost::format("`%s` between %d AND %d") % name_ % min % max);
 }
 
 std::string idx_date_field::get_sql_where(int64_t min, int64_t max) const{
-    return string_format("`%s` between FROM_DAYS(%s) AND FROM_DAYS(%s)",name_.c_str(),std::to_string(min).c_str(),std::to_string(max).c_str());
+    return boost::str(boost::format("`%s` between FROM_DAYS(%d) AND FROM_DAYS(%d)") % name_ % min % max);
 }
 
 std::string idx_int_field::get_sql_sel_min_max() const{
-    return string_format("min(%s) AS MIN ,max(%s) AS MAX",name_.c_str(),name_.c_str());
+    return boost::str(boost::format("min(%1%) AS MIN ,max(%1%) AS MAX") % name_);
 }
 
 std::string idx_date_field::get_sql_sel_min_max() const{
-    return string_format("TO_DAYS(min(%s)) AS MIN, TO_DAYS(max(%s)) AS MAX",name_.c_str(),name_.c_str());
+    return boost::str(boost::format("TO_DAYS(min(%1%)) AS MIN, TO_DAYS(max(%1%)) AS MAX") % name_);
 }
 
 void index::init_index(sql::Connection *con) {
@@ -45,12 +45,10 @@ void index::init_index(sql::Connection *con) {
 }
 
 void index::parse_columns(sql::Connection *con){  //Get columns from table
-    std::string sql_template="SELECT COLUMN_NAME,ORDINAL_POSITION,DATA_TYPE,CHARACTER_SET_NAME,COLLATION_NAME "
-            "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s' "
-            "ORDER BY ORDINAL_POSITION;";
-    if (DEBUG) { std::cerr << dbname_ << " " <<  tablename_ << std::endl; }
-//    printf(sql_template,dbname_,tablename_);
-    std::string sql=string_format(sql_template,dbname_.c_str(),tablename_.c_str());
+    if (DEBUG) { std::cerr << "DB:" << dbname_ << " TBL:" <<  tablename_ << std::endl; }
+    std::string sql=boost::str(boost::format("SELECT COLUMN_NAME,ORDINAL_POSITION,DATA_TYPE,CHARACTER_SET_NAME,COLLATION_NAME "
+                                             "FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s' "
+                                             "ORDER BY ORDINAL_POSITION;") % dbname_ % tablename_);
 
     if (DEBUG) { std::cerr << sql << std::endl; }
     auto stmt = con->createStatement();
@@ -70,15 +68,14 @@ void index::parse_columns(sql::Connection *con){  //Get columns from table
 }
 
 void index::parse_index(sql::Connection *con) { // Get index statistics from table
-    std::string sql_template = "SELECT COLUMN_NAME,SEQ_IN_INDEX,DATA_TYPE,ROUND(1000*TABLE_ROWS/CARDINALITY,0) AS CARDI "
-            "FROM INFORMATION_SCHEMA.STATISTICS "
-            "JOIN INFORMATION_SCHEMA.COLUMNS USING(TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME) "
-            "JOIN INFORMATION_SCHEMA.TABLES USING(TABLE_SCHEMA,TABLE_NAME) "
-            "WHERE INDEX_NAME = 'PRIMARY' AND TABLE_SCHEMA='%s' "
-            "AND TABLE_NAME='%s' "
-            "ORDER BY SEQ_IN_INDEX;";
 
-    std::string sql = string_format(sql_template, dbname_.c_str(), tablename_.c_str());
+    std::string sql = boost::str(boost::format("SELECT COLUMN_NAME,SEQ_IN_INDEX,DATA_TYPE,ROUND(1000*TABLE_ROWS/CARDINALITY,0) AS CARDI "
+                                               "FROM INFORMATION_SCHEMA.STATISTICS "
+                                               "JOIN INFORMATION_SCHEMA.COLUMNS USING(TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME) "
+                                               "JOIN INFORMATION_SCHEMA.TABLES USING(TABLE_SCHEMA,TABLE_NAME) "
+                                               "WHERE INDEX_NAME = 'PRIMARY' AND TABLE_SCHEMA='%s' "
+                                               "AND TABLE_NAME='%s' "
+                                               "ORDER BY SEQ_IN_INDEX;") % dbname_ % tablename_);
     if (DEBUG) { std::cerr << sql << std::endl; }
     auto stmt = con->createStatement();
     auto res = stmt->executeQuery(sql);
@@ -183,10 +180,10 @@ void index::parse_index_min_max(sql::Connection *con,size_t index_num) {
         exit(11);
     }
 
-    std::string sql_template="SELECT %s FROM `%s`.`%s` "
-                             "FORCE INDEX (`PRIMARY`) WHERE %s";
-    std::string sql=string_format(sql_template,Range[index_num]->get_sql_sel_min_max().c_str(),
-                                  dbname_.c_str(), tablename_.c_str(), get_sql_where().c_str());
+    std::string sql=boost::str(boost::format(
+            "SELECT %s FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s")
+            % Range[index_num]->get_sql_sel_min_max() % dbname_ % tablename_ % get_sql_where());
+
     if(EXT.size()>0){
         sql+=" AND "+EXT;
     }
@@ -204,10 +201,11 @@ void index::parse_index_min_max(sql::Connection *con,size_t index_num) {
 
     ///Calc cardinality
     if (index_num != 0){
-       std::string sql_template="SELECT count(*) AS COUNT FROM `%s`.`%s` "
-                "FORCE INDEX (`PRIMARY`) WHERE %s";
 
-        std::string sql=string_format(sql_template,dbname_.c_str(),tablename_.c_str(), get_sql_where().c_str());
+        std::string sql=boost::str(boost::format(
+                "SELECT count(*) AS COUNT FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s")
+                % dbname_ % tablename_ % get_sql_where());
+
         if (DEBUG) { std::cerr << sql << std::endl; }
         auto stmt = con->createStatement();
         auto res = stmt->executeQuery(sql);
@@ -225,55 +223,6 @@ void index::parse_index_min_max(sql::Connection *con,size_t index_num) {
         delete res;
         delete stmt;
     }
-
-//    if (index_num == 0) {
-//        int64_t slice = abs(Range[index_num]->stop_ - Range[index_num]->start_) / 10;
-//        if (slice < 1) { slice = 1; }
-//        int64_t min = (Range[index_num]->start_ + slice *4 );
-//        int64_t max = min + slice*2 - 1;
-//        int64_t cols1p_byindex = slice;
-//        std::string sql_template="SELECT count(*) AS COUNT FROM `%s`.`%s` "
-//                "FORCE INDEX (`PRIMARY`) WHERE %s";
-//
-//        std::string sql=string_format(sql_template,dbname_.c_str(),tablename_.c_str(),
-//                                      Range[index_num]->get_sql_where(min, max).c_str());
-//
-//        if (DEBUG) { std::cerr << sql << std::endl; }
-//        auto stmt = con->createStatement();
-//        auto res = stmt->executeQuery(sql);
-//        int64_t cols1p_real;
-//        while (res->next()) {
-//            cols1p_real = res->getInt("COUNT");
-//        }
-//        if (cols1p_byindex == 0) { cols1p_byindex = 1; }
-//        Range[index_num]->cardinality_ = cols1p_real / cols1p_byindex;
-//        if (Range[index_num]->cardinality_ < 1){
-//            Range[index_num]->cardinality_=1;
-//        }
-//        if (DEBUG) { std::cerr << "#Cardinality: "<< Range[index_num]->cardinality_ << std::endl; }
-//        delete res;
-//        delete stmt;
-//    } else {
-//        std::string sql_template="SELECT count(*) AS COUNT FROM `%s`.`%s` "
-//                "FORCE INDEX (`PRIMARY`) WHERE %s";
-//
-//        std::string sql=string_format(sql_template,dbname_.c_str(),tablename_.c_str(), get_sql_where().c_str());
-//        if (DEBUG) { std::cerr << sql << std::endl; }
-//        auto stmt = con->createStatement();
-//        auto res = stmt->executeQuery(sql);
-//        int64_t cols1p_real;
-//        while (res->next()) {
-//            cols1p_real = res->getInt("COUNT");
-//        }
-//        int64_t cols1p_byindex=Range[index_num]->stop_-Range[index_num]->start_+1;
-//        if (cols1p_byindex == 0) { cols1p_byindex = 1; }
-//        Range[index_num]->cardinality_ = cols1p_real / cols1p_byindex;
-//        if (Range[index_num]->cardinality_ < 1){
-//            Range[index_num]->cardinality_=1;
-//        }
-//        delete res;
-//        delete stmt;
-//    }
     index_ranged++;
 }
 
@@ -296,7 +245,6 @@ my::index index::copy_index() const{
         ret.Range[i]->stop_=Range[i]->stop_;
     }
     return ret;
-
 }
 
 void index::index_iteration_first_step(index& irange){
@@ -371,11 +319,12 @@ bool operator!= (checksum_ lhs, checksum_ rhs) {
 }
 
 checksum_ checksum(sql::Connection *con, const my::index& idx){
-    std::string sql_template = "SELECT 0 AS chunk_num, COUNT(*) AS cnt, "
+
+    std::string sql=boost::str(boost::format("SELECT 0 AS chunk_num, COUNT(*) AS cnt, "
             "COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#',%s)) AS UNSIGNED)), 10, 16)), 0) AS crc "
-            "FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s ";
-    std::string sql=string_format(sql_template,idx.get_col_names().c_str(),
-                                  idx.get_dbname().c_str(),idx.get_tablename().c_str(),idx.get_sql_where().c_str());
+            "FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s ")
+            % idx.get_col_names() % idx.get_dbname() % idx.get_tablename() % idx.get_sql_where());
+
     if(EXT.size()>0){
         sql+=" AND "+EXT;
     }
@@ -400,12 +349,12 @@ std::map<std::vector<field>,std::string>
 rows_checksum(sql::Connection *con,const my::index& idx){
     std::string index_line=idx.get_full_index_names();
 
-    std::string sql_template="SELECT %s , "
+    std::string sql=boost::str(boost::format("SELECT %s , "
             "COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#',%s)) AS UNSIGNED)), 10, 16)), 0) AS crc "
             "FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s "
-            "GROUP BY %s ORDER BY %s ;" ;
-    std::string sql=string_format(sql_template,index_line.c_str(),idx.get_col_names().c_str(),idx.get_dbname().c_str(),idx.get_tablename().c_str(),
-                                  idx.get_sql_where().c_str(), index_line.c_str(), index_line.c_str() );
+            "GROUP BY %s ORDER BY %s ;")
+            % index_line % idx.get_col_names() % idx.get_dbname() % idx.get_tablename()
+            % idx.get_sql_where() % index_line % index_line );
 
     if (DEBUG) { std::cerr << sql << std::endl; }
     auto stmt = con->createStatement();
@@ -442,9 +391,8 @@ std::vector<field>
 get_all_line(sql::Connection *con,const my::index& idx, const std::vector<field>& prikey ){
     std::string index_line=idx.get_full_index_names();
 
-    std::string sql_template="SELECT %s FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s LIMIT 1 ;";
-    std::string sql=string_format(sql_template,idx.get_col_names().c_str(),idx.get_dbname().c_str(),idx.get_tablename().c_str(),
-                                  vfield_to_str(prikey,"AND").c_str());
+    std::string sql=boost::str(boost::format("SELECT %s FROM `%s`.`%s` FORCE INDEX (`PRIMARY`) WHERE %s LIMIT 1 ;")
+            % idx.get_col_names() % idx.get_dbname() % idx.get_tablename() % vfield_to_str(prikey,"AND"));
 
     if (DEBUG) { std::cerr << sql << std::endl; }
     auto stmt = con->createStatement();
@@ -463,10 +411,6 @@ get_all_line(sql::Connection *con,const my::index& idx, const std::vector<field>
     return ret;
 };
 
-
-
-
-
 void compare_tables(sql::Connection *con, sql::Connection *con2, my::index& irange){
         auto ch1 = checksum(con, irange);
         auto ch2 = checksum(con2, irange);
@@ -481,7 +425,7 @@ void compare_tables(sql::Connection *con, sql::Connection *con2, my::index& iran
                 std::map<std::vector<field>,std::string> rows_chs2 = rows_checksum(con2,irange);
                 {
                     std::vector<std::vector<field>> mark_for_remove;
-                    for (auto r:rows_chs) {  // Delete dubbles
+                    for (auto r:rows_chs) {  // Delete doubles
                         if (rows_chs.count(r.first) + rows_chs2.count(r.first) == 2) {
                             if (rows_chs.at(r.first) == rows_chs2.at(r.first)) {
                                 mark_for_remove.push_back(r.first);
@@ -507,9 +451,9 @@ void compare_tables(sql::Connection *con, sql::Connection *con2, my::index& iran
                             val_line+=", ";
                         }
                     }
-                    std::string sql_template="REPLACE INTO `%s`.`%s`(%s) VALUES(%s) ;";
-                    std::string sql=string_format(sql_template,irange.get_dbname().c_str(),irange.get_tablename().c_str(),
-                                                  name_line.c_str(),val_line.c_str());
+                    std::string sql=boost::str(boost::format("REPLACE INTO `%s`.`%s`(%s) VALUES(%s) ;")
+                            % irange.get_dbname() % irange.get_tablename() % name_line % val_line);
+
                     std::cout << sql << std::endl;
                     if (DEBUG) { std::cerr << "#Report size "<< rows_chs.size() << ":" << rows_chs2.size() << std::endl; }
                 }

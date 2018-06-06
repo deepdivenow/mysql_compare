@@ -12,7 +12,7 @@
 #include <string>
 #include <memory>
 
-#include "string_format.h"
+#include "boost/format.hpp"
 
 #define MAX_STEP 65280
 #define MIN_STEP 1000
