@@ -3,7 +3,7 @@ env:
   global:
     - CPACK_PACKAGE_NAME=mysql_compare
     - BINTRAY_USER=deepdivenow
-    - BINTRAY_REPO=otus
+    - BINTRAY_REPO=tools
 before_script:
   - sudo apt-get install libgtest-dev libboost-test-dev libmysqlcppconn-dev cmake -y
   - cd /usr/src/gtest 
