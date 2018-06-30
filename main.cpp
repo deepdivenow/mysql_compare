@@ -1,5 +1,5 @@
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <iostream>
 #include <set>
 
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     std::set<std::string> args_tables, tables;
     int c;
     int option_index;
-    while (1) {
+    while (true) {
         int this_option_optind = optind ? optind : 1;
         int option_index = 0;
         static struct option long_options[] = {

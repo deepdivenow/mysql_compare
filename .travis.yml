@@ -1,0 +1,23 @@
+language: cpp
+env:
+  global:
+    - CPACK_PACKAGE_NAME=mysql_compare
+    - BINTRAY_USER=deepdivenow
+    - BINTRAY_REPO=otus
+before_script:
+  - sudo apt-get install libgtest-dev libboost-test-dev libmysqlcppconn-dev cmake -y
+  - cd /usr/src/gtest 
+  - sudo cmake .
+  - sudo cmake --build .
+  - sudo cp /usr/src/gtest/*.a /usr/lib
+  - cd "${TRAVIS_BUILD_DIR}"
+script:
+  - cmake .
+  - cmake --build .
+  - cmake --build . --target test
+  - cmake --build . --target package
+deploy:
+  provider: script
+  skip_cleanup: true
+  script:
+   - curl -T ${CPACK_PACKAGE_NAME}-0.0.$TRAVIS_BUILD_NUMBER-Linux.deb -u${BINTRAY_USER}:$BINTRAY_API_KEY "https://api.bintray.com/content/${BINTRAY_USER}/${BINTRAY_REPO}/${CPACK_PACKAGE_NAME}/$TRAVIS_BUILD_NUMBER/${CPACK_PACKAGE_NAME}-0.0.$TRAVIS_BUILD_NUMBER-Linux.deb;deb_distribution=trusty;deb_component=main;deb_architecture=amd64;publish=1"

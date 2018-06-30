@@ -308,7 +308,7 @@ std::pair<my::index,my::index> index::index_split(sql::Connection *con, const in
     }
         std::cerr << "Bad split" << std::endl;
         exit(15);
-};
+}
 
 bool operator== (checksum_ lhs, checksum_ rhs) {
     return lhs.crc == rhs.crc && lhs.cnt == rhs.cnt;
@@ -373,7 +373,7 @@ rows_checksum(sql::Connection *con,const my::index& idx){
     delete res;
     delete stmt;
     return ret;
-};
+}
 
 std::string vfield_to_str(const std::vector<field>& v,const std::string& spliter){
     std::string str;
@@ -409,7 +409,7 @@ get_all_line(sql::Connection *con,const my::index& idx, const std::vector<field>
     delete res;
     delete stmt;
     return ret;
-};
+}
 
 void compare_tables(sql::Connection *con, sql::Connection *con2, my::index& irange){
         auto ch1 = checksum(con, irange);
